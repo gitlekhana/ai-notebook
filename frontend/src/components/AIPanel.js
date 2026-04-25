@@ -9,15 +9,19 @@ export default function AIPanel({ notes, selectedIds }) {
   const [error, setError] = useState("");
   const [useSelected, setUseSelected] = useState(false);
 
-  const targetIds = useSelected && selectedIds.length > 0 ? selectedIds : undefined;
-  const targetCount = targetIds ? targetIds.length : notes.length;
+  const targetNotes =
+    useSelected && selectedIds.length > 0
+      ? notes.filter((n) => selectedIds.includes(n.id))
+      : notes;
+  const targetCount = targetNotes.length;
+  const notesText = targetNotes.map((n) => `${n.title}\n${n.content}`).join("\n---\n");
 
   const handleAsk = async (e) => {
     e.preventDefault();
-    if (!question.trim()) return;
+    if (!question.trim() || notes.length === 0) return;
     setLoading(true); setError(""); setResult(null);
     try {
-      const data = await askQuestion(question.trim(), targetIds);
+      const data = await askQuestion(question.trim(), notesText);
       setResult({ type: "answer", content: data.answer, used: data.notesUsed });
     } catch (err) {
       setError(err.message);
@@ -27,9 +31,10 @@ export default function AIPanel({ notes, selectedIds }) {
   };
 
   const handleSummarize = async () => {
+    if (notes.length === 0) return;
     setLoading(true); setError(""); setResult(null);
     try {
-      const data = await summarizeNotes(targetIds);
+      const data = await summarizeNotes(notesText);
       setResult({ type: "summary", content: data.summary, used: data.notesUsed });
     } catch (err) {
       setError(err.message);
@@ -41,8 +46,10 @@ export default function AIPanel({ notes, selectedIds }) {
   return (
     <div className="ai-panel">
       <div className="ai-panel-header">
-        <span className="ai-badge">✦ AI</span>
-        <h2>AI Assistant</h2>
+        <div className="ai-panel-title">
+          <span className="ai-orb" />
+          <h2>AI Assistant</h2>
+        </div>
         {notes.length > 0 && (
           <label className="toggle-label">
             <input
@@ -51,16 +58,19 @@ export default function AIPanel({ notes, selectedIds }) {
               disabled={selectedIds.length === 0}
               onChange={(e) => setUseSelected(e.target.checked)}
             />
-            <span>Selected only ({selectedIds.length})</span>
+            <span className="toggle-track"><span className="toggle-thumb" /></span>
+            <span className="toggle-text">Selected only ({selectedIds.length})</span>
           </label>
         )}
       </div>
 
       <div className="ai-tabs">
-        <button className={`ai-tab ${tab === "ask" ? "active" : ""}`} onClick={() => { setTab("ask"); setResult(null); setError(""); }}>
+        <button className={`ai-tab ${tab === "ask" ? "active" : ""}`}
+          onClick={() => { setTab("ask"); setResult(null); setError(""); }}>
           💬 Ask
         </button>
-        <button className={`ai-tab ${tab === "summarize" ? "active" : ""}`} onClick={() => { setTab("summarize"); setResult(null); setError(""); }}>
+        <button className={`ai-tab ${tab === "summarize" ? "active" : ""}`}
+          onClick={() => { setTab("summarize"); setResult(null); setError(""); }}>
           📝 Summarize
         </button>
       </div>
@@ -68,24 +78,25 @@ export default function AIPanel({ notes, selectedIds }) {
       <div className="ai-body">
         {tab === "ask" && (
           <form onSubmit={handleAsk} className="ask-form">
-            <p className="ai-hint">Ask anything about your {targetCount} note{targetCount !== 1 ? "s" : ""}.</p>
+            <p className="ai-hint">Ask anything about your <strong>{targetCount}</strong> note{targetCount !== 1 ? "s" : ""}.</p>
             <textarea
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
-              placeholder="What are the key points from my meeting notes?"
-              rows={3}
+              placeholder="What are the key points from my notes?"
+              rows={4}
+              disabled={loading}
             />
             <button type="submit" className="btn-ai" disabled={loading || !question.trim() || notes.length === 0}>
-              {loading ? <span className="loading-dots">Thinking</span> : "Ask AI →"}
+              {loading ? <><span className="dot" /><span className="dot" /><span className="dot" /></> : "Ask AI →"}
             </button>
           </form>
         )}
 
         {tab === "summarize" && (
           <div className="summarize-form">
-            <p className="ai-hint">Generate a structured summary of {targetCount} note{targetCount !== 1 ? "s" : ""}.</p>
+            <p className="ai-hint">Generate a summary of <strong>{targetCount}</strong> note{targetCount !== 1 ? "s" : ""}.</p>
             <button className="btn-ai" onClick={handleSummarize} disabled={loading || notes.length === 0}>
-              {loading ? <span className="loading-dots">Summarizing</span> : "Generate Summary →"}
+              {loading ? <><span className="dot" /><span className="dot" /><span className="dot" /></> : "Generate Summary →"}
             </button>
           </div>
         )}
@@ -99,15 +110,15 @@ export default function AIPanel({ notes, selectedIds }) {
               <span className="notes-used">{result.used} note{result.used !== 1 ? "s" : ""} used</span>
             </div>
             <div className="ai-result-content">
-              {result.content.split("\n").map((line, i) => (
-                <p key={i}>{line}</p>
-              ))}
+              {result.content.split("\n").filter(Boolean).map((line, i) => <p key={i}>{line}</p>)}
             </div>
+            <button className="btn-copy" onClick={() => navigator.clipboard.writeText(result.content)}>Copy</button>
           </div>
         )}
 
         {notes.length === 0 && (
           <div className="ai-empty">
+            <div className="ai-empty-icon">◈</div>
             <p>Create some notes first to use AI features.</p>
           </div>
         )}
